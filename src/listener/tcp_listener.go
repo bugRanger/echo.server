@@ -2,7 +2,6 @@ package listener
 
 import (
 	"context"
-	"io"
 	"log"
 	"net"
 	"syscall"
@@ -10,10 +9,15 @@ import (
 
 type TcpListener struct {
 	listener net.Listener
+	handler  ConnectionHandler
 	shutdown chan bool
 }
 
-func NewTcpListener(address string) *TcpListener {
+type ConnectionHandler interface {
+	handle(conn net.Conn)
+}
+
+func NewTcpListener(address string, handler ConnectionHandler) *TcpListener {
 
 	config := &net.ListenConfig{Control: reuseAddr}
 
@@ -26,6 +30,7 @@ func NewTcpListener(address string) *TcpListener {
 
 	tcpListener := &TcpListener{
 		listener,
+		handler,
 		make(chan bool),
 	}
 
@@ -60,14 +65,7 @@ func (listener *TcpListener) listen() {
 		log.Println("Failed to accept connection:", err.Error())
 	}
 
-	go handleConn(conn)
-}
-
-func handleConn(conn net.Conn) {
-	defer func() {
-		conn.Close()
-	}()
-	io.Copy(conn, conn)
+	go listener.handler.handle(conn)
 }
 
 func reuseAddr(network, address string, conn syscall.RawConn) error {
