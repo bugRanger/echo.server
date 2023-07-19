@@ -2,6 +2,7 @@ package listener
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 	"syscall"
@@ -46,13 +47,18 @@ func (listener *TcpListener) Close() {
 }
 
 func (listener *TcpListener) listen() {
+	for {
+		conn, err := listener.listener.Accept()
+		if err != nil {
+			if !errors.Is(err, net.ErrClosed) {
+				log.Println("Failed to accept connection:", err.Error())
+			}
 
-	conn, err := listener.listener.Accept()
-	if err != nil {
-		log.Println("Failed to accept connection:", err.Error())
+			return
+		}
+
+		go listener.handler.handle(conn)
 	}
-
-	go listener.handler.handle(conn)
 }
 
 func reuseAddr(network, address string, conn syscall.RawConn) error {
