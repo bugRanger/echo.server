@@ -10,7 +10,6 @@ import (
 type TcpListener struct {
 	listener net.Listener
 	handler  ConnectionHandler
-	shutdown chan bool
 }
 
 type ConnectionHandler interface {
@@ -31,10 +30,8 @@ func NewTcpListener(address string, handler ConnectionHandler) *TcpListener {
 	tcpListener := &TcpListener{
 		listener,
 		handler,
-		make(chan bool),
 	}
 
-	go tcpListener.waitTerminate()
 	go tcpListener.listen()
 
 	return tcpListener
@@ -42,20 +39,10 @@ func NewTcpListener(address string, handler ConnectionHandler) *TcpListener {
 
 func (listener *TcpListener) Close() {
 	log.Println("Stop requested")
-	listener.shutdown <- true
 
-	<-listener.shutdown
+	listener.listener.Close()
 
 	log.Println("Stopped successfully")
-}
-
-func (listener *TcpListener) waitTerminate() {
-
-	<-listener.shutdown
-	log.Println("Shutting down...")
-	listener.listener.Close()
-	listener.shutdown <- true
-	return
 }
 
 func (listener *TcpListener) listen() {
