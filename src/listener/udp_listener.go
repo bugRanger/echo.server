@@ -12,14 +12,10 @@ type UdpListener struct {
 }
 
 func NewUdpListener(address string, handler ConnectionHandler) (*UdpListener, error) {
-	log.Println("Start requested")
-
 	conn, err := net.ListenPacket("udp", address)
 	if err != nil {
 		return nil, err
 	}
-
-	log.Println("Server is running on:", address)
 
 	go func() {
 		buf := make([]byte, 1024)
@@ -57,13 +53,11 @@ func NewUdpListener(address string, handler ConnectionHandler) (*UdpListener, er
 }
 
 func (listener *UdpListener) Close() error {
-	log.Println("Stop requested")
 
 	err := listener.closer.Close()
 	if err != nil {
 		return err
 	}
 
-	log.Println("Stopped successfully")
 	return nil
 }

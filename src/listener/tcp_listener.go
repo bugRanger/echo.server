@@ -25,14 +25,10 @@ type ConnectionHandler interface {
 
 func NewTcpListener(address string, handler ConnectionHandler) (*TcpListener, error) {
 	config := &net.ListenConfig{Control: reuseAddr}
-
-	log.Println("Start requested")
 	listener, err := config.Listen(context.Background(), "tcp", address)
 	if err != nil {
 		return nil, err
 	}
-
-	log.Println("Server is running on:", address)
 
 	var conn sync.Map
 
@@ -48,8 +44,6 @@ func NewTcpListener(address string, handler ConnectionHandler) (*TcpListener, er
 }
 
 func (listener *TcpListener) Close() error {
-	log.Println("Stop requested")
-
 	err := listener.closer.Close()
 	if err != nil {
 		return err
@@ -64,7 +58,6 @@ func (listener *TcpListener) Close() error {
 		return true
 	})
 
-	log.Println("Stopped successfully")
 	return nil
 }
 
