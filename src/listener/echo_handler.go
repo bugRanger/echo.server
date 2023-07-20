@@ -8,10 +8,7 @@ import (
 type EchoHandler struct {
 }
 
-func (handler *EchoHandler) handle(conn net.Conn) {
-	defer func() {
-		conn.Close()
-	}()
-
-	io.Copy(conn, conn)
+func (handler *EchoHandler) handle(conn net.Conn) error {
+	_, err := io.Copy(conn, conn)
+	return err
 }

@@ -6,16 +6,20 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"syscall"
+
+	"github.com/google/uuid"
 )
 
 type TcpListener struct {
 	handler ConnectionHandler
 	closer  io.Closer
+	conn    *sync.Map
 }
 
 type ConnectionHandler interface {
-	handle(conn net.Conn)
+	handle(conn net.Conn) error
 }
 
 func NewTcpListener(address string, handler ConnectionHandler) (*TcpListener, error) {
@@ -29,9 +33,12 @@ func NewTcpListener(address string, handler ConnectionHandler) (*TcpListener, er
 
 	log.Println("Server is running on:", address)
 
+	var conn sync.Map
+
 	tcpListener := &TcpListener{
 		handler,
 		listener,
+		&conn,
 	}
 
 	go tcpListener.listen(listener)
@@ -47,6 +54,15 @@ func (listener *TcpListener) Close() error {
 		return err
 	}
 
+	listener.conn.Range(func(key, value interface{}) bool {
+		val, ok := value.(io.Closer)
+		if ok {
+			val.Close()
+		}
+
+		return true
+	})
+
 	log.Println("Stopped successfully")
 	return nil
 }
@@ -59,10 +75,26 @@ func (listener *TcpListener) listen(listenerBase net.Listener) {
 				log.Println("Failed to accept connection:", err.Error())
 			}
 
-			return
+			continue
 		}
 
-		go listener.handler.handle(conn)
+		go handleConnection(uuid.New(), conn, listener.conn, listener.handler)
+	}
+}
+
+func handleConnection(connId uuid.UUID, conn net.Conn, connSync *sync.Map, handler ConnectionHandler) {
+	defer func() {
+		connSync.Delete(connId)
+		_ = conn.Close()
+	}()
+
+	connSync.Store(connId, conn)
+
+	err := handler.handle(conn)
+	if err != nil {
+		if !errors.Is(err, net.ErrClosed) {
+			log.Println("Failed to handle connection:", err.Error())
+		}
 	}
 }
 
