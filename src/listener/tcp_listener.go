@@ -20,6 +20,7 @@ type TcpListener struct {
 
 type ConnectionHandler interface {
 	handle(conn net.Conn) error
+	handleByte(bytes []byte) (array []byte)
 }
 
 func NewTcpListener(address string, handler ConnectionHandler) (*TcpListener, error) {
