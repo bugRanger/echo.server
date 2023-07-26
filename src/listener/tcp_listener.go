@@ -1,13 +1,11 @@
 package listener
 
 import (
-	"context"
 	"errors"
 	"io"
 	"log"
 	"net"
 	"sync"
-	"syscall"
 
 	"github.com/google/uuid"
 )
@@ -19,9 +17,13 @@ type TcpListener struct {
 }
 
 func NewTcpListener(address string, handler PacketHandler) (*TcpListener, error) {
-	config := &net.ListenConfig{Control: reuseAddr}
-	listener, err := config.Listen(context.Background(), "tcp", address)
-	if err != nil {
+	addr, err := net.ResolveTCPAddr("tcp", address)
+	if nil != err {
+		return nil, err
+	}
+
+	listener, err := net.ListenTCP("tcp", addr)
+	if nil != err {
 		return nil, err
 	}
 
@@ -104,18 +106,4 @@ func handleConnection(connId uuid.UUID, conn net.Conn, connSync *sync.Map, handl
 			return
 		}
 	}
-}
-
-func reuseAddr(network, address string, conn syscall.RawConn) error {
-	var errorControl, errorReuseAddr error
-
-	errorControl = conn.Control(func(descriptor uintptr) {
-		errorReuseAddr = syscall.SetsockoptInt(syscall.Handle(descriptor), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
-	})
-
-	if errorControl != nil {
-		return errorControl
-	}
-
-	return errorReuseAddr
 }
