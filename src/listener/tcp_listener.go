@@ -3,6 +3,7 @@ package listener
 import (
 	"context"
 	"errors"
+	"io"
 	"log"
 	"net"
 	"sync"
@@ -86,10 +87,15 @@ func (l *TCPListener) handleConnection(ctx context.Context, conn net.Conn, handl
 			}
 
 			if err != nil {
-				if !errors.Is(err, net.ErrClosed) {
-					log.Println("Failed to read connection:", err.Error())
+				if errors.Is(err, net.ErrClosed) {
+					return
 				}
 
+				if errors.Is(err, io.EOF) {
+					return
+				}
+
+				log.Println("Failed to read connection:", err.Error())
 				return
 			}
 		}
