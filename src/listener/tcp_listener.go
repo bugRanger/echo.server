@@ -3,57 +3,43 @@ package listener
 import (
 	"context"
 	"errors"
-	"io"
 	"log"
 	"net"
 	"sync"
 )
 
-type TcpListener struct {
+type TCPListener struct {
 	connections sync.WaitGroup
-	closer      io.Closer
-	cancel      context.CancelFunc
 }
 
-func NewTcpListener(address string, handler PacketHandler) (*TcpListener, error) {
+func (l *TCPListener) Listen(ctx context.Context, address string, handler PacketHandler) error {
 	addr, err := net.ResolveTCPAddr("tcp", address)
 	if nil != err {
-		return nil, err
-	}
-
-	listener, err := net.ListenTCP("tcp", addr)
-	if nil != err {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	tcpListener := &TcpListener{
-		sync.WaitGroup{},
-		listener,
-		cancel,
-	}
-
-	go listen(ctx, listener, &tcpListener.connections, handler)
-
-	return tcpListener, nil
-}
-
-func (listener *TcpListener) Close() error {
-	err := listener.closer.Close()
-	if err != nil {
 		return err
 	}
 
-	listener.cancel()
-	listener.connections.Wait()
+	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		cancel()
+		l.connections.Wait()
+	}()
+
+	listener, err := net.ListenTCP("tcp", addr)
+	if nil != err {
+		return err
+	}
+	defer listener.Close()
+
+	go l.listen(ctx, listener, handler)
+
+	<-ctx.Done()
 
 	return nil
 }
 
-func listen(ctx context.Context, listenerBase net.Listener, connections *sync.WaitGroup, handler PacketHandler) {
+func (l *TCPListener) listen(ctx context.Context, listener net.Listener, handler PacketHandler) {
 	for {
-		conn, err := listenerBase.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
 			if e, ok := err.(*net.OpError); ok && e.Temporary() {
 				continue
@@ -66,17 +52,17 @@ func listen(ctx context.Context, listenerBase net.Listener, connections *sync.Wa
 			break
 		}
 
-		go handleConnection(ctx, conn, connections, handler)
+		go l.handleConnection(ctx, conn, handler)
 	}
 }
 
-func handleConnection(ctx context.Context, conn net.Conn, connections *sync.WaitGroup, handler PacketHandler) {
+func (l *TCPListener) handleConnection(ctx context.Context, conn net.Conn, handler PacketHandler) {
 	ctx, cancel := context.WithCancel(ctx)
 
-	connections.Add(1)
+	l.connections.Add(1)
 	defer func() {
 		_ = conn.Close()
-		connections.Done()
+		l.connections.Done()
 	}()
 
 	go func() {

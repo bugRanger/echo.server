@@ -1,68 +1,58 @@
 package listener
 
 import (
+	"context"
 	"errors"
-	"io"
 	"log"
 	"net"
 )
 
-type UdpListener struct {
-	closer io.Closer
+type UDPListener struct {
 }
 
-func NewUdpListener(address string, handler PacketHandler) (*UdpListener, error) {
+func (l *UDPListener) Listen(ctx context.Context, address string, handler PacketHandler) error {
 	addr, err := net.ResolveUDPAddr("udp", address)
 	if nil != err {
-		return nil, err
+		return err
 	}
 
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	defer conn.Close()
 
-	go func() {
-		buf := make([]byte, 1024)
-		for {
-			count, addr, err := conn.ReadFromUDPAddrPort(buf)
+	go l.listen(conn, handler)
 
-			if count > 0 {
-				packet := handler.Handle(buf[:count])
+	<-ctx.Done()
 
-				_, err = conn.WriteToUDPAddrPort(packet, addr)
-				if err != nil {
-					if !errors.Is(err, net.ErrClosed) {
-						log.Println("Failed to write connection:", err.Error())
-					}
+	return nil
+}
 
-					return
-				}
-			}
+func (l *UDPListener) listen(conn *net.UDPConn, handler PacketHandler) {
+	buf := make([]byte, 1024)
+	for {
+		count, addr, err := conn.ReadFromUDPAddrPort(buf)
 
+		if count > 0 {
+			packet := handler.Handle(buf[:count])
+
+			_, err = conn.WriteToUDPAddrPort(packet, addr)
 			if err != nil {
 				if !errors.Is(err, net.ErrClosed) {
-					log.Println("Failed to read connection:", err.Error())
+					log.Println("Failed to write connection:", err.Error())
 				}
 
 				return
 			}
 		}
-	}()
 
-	udpListener := &UdpListener{
-		conn,
+		if err != nil {
+			if !errors.Is(err, net.ErrClosed) {
+				log.Println("Failed to read connection:", err.Error())
+			}
+
+			return
+		}
 	}
-
-	return udpListener, nil
-}
-
-func (listener *UdpListener) Close() error {
-
-	err := listener.closer.Close()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

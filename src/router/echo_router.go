@@ -1,56 +1,65 @@
 package router
 
 import (
+	"context"
 	"log"
 	"main/src/listener"
+	"sync"
 )
 
 type EchoRouter struct {
-	tcp *listener.TcpListener
-	udp *listener.UdpListener
+	channels sync.WaitGroup
+	cancel   context.CancelFunc
 }
 
 func (e *EchoRouter) Open(address string) error {
 	log.Println("Start requested")
+
 	handler := &EchoHandler{}
 
-	udpListener, err := listener.NewUdpListener(address, handler)
-	if err != nil {
-		return err
-	}
-	e.udp = udpListener
+	ctx, cancel := context.WithCancel(context.Background())
+	e.cancel = cancel
 
-	log.Println("Server UDP is running on:", address)
-
-	tcpListener, err := listener.NewTcpListener(address, handler)
-	if err != nil {
-		return err
-	}
-
-	e.tcp = tcpListener
-
-	log.Println("Server TCP is running on:", address)
+	e.channels.Add(2)
+	go e.listenUDP(ctx, address, handler)
+	go e.listenTCP(ctx, address, handler)
 
 	return nil
 }
 
 func (e *EchoRouter) Close() {
-	var err error
 	log.Println("Stop requested")
 
-	if e.udp != nil {
-		err = e.udp.Close()
-		if err != nil {
-			log.Println("Failed close server UDP:", err.Error())
-		}
-	}
-
-	if e.tcp != nil {
-		err = e.tcp.Close()
-		if err != nil {
-			log.Println("Failed close server TCP:", err.Error())
-		}
-	}
+	e.cancel()
+	e.channels.Wait()
 
 	log.Println("Stopped successfully")
+}
+
+func (e *EchoRouter) listenTCP(ctx context.Context, address string, handler listener.PacketHandler) {
+	defer e.channels.Done()
+
+	log.Println("Server TCP is running on:", address)
+
+	var listener listener.TCPListener
+	err := listener.Listen(ctx, address, handler)
+
+	log.Println("Server TCP stopped:", address)
+	if err != nil {
+		log.Println("Server TCP failure:", err)
+	}
+}
+
+func (e *EchoRouter) listenUDP(ctx context.Context, address string, handler listener.PacketHandler) {
+	defer e.channels.Done()
+
+	log.Println("Server UDP is running on:", address)
+
+	var listener listener.UDPListener
+	err := listener.Listen(ctx, address, handler)
+
+	log.Println("Server UDP stopped:", address)
+	if err != nil {
+		log.Println("Server UDP failure:", err)
+	}
 }
