@@ -1,19 +1,18 @@
 package listener
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log"
 	"net"
 	"sync"
-
-	"github.com/google/uuid"
 )
 
 type TcpListener struct {
-	handler PacketHandler
-	closer  io.Closer
-	conn    *sync.Map
+	connections sync.WaitGroup
+	closer      io.Closer
+	cancel      context.CancelFunc
 }
 
 func NewTcpListener(address string, handler PacketHandler) (*TcpListener, error) {
@@ -27,15 +26,15 @@ func NewTcpListener(address string, handler PacketHandler) (*TcpListener, error)
 		return nil, err
 	}
 
-	var conn sync.Map
+	ctx, cancel := context.WithCancel(context.Background())
 
 	tcpListener := &TcpListener{
-		handler,
+		sync.WaitGroup{},
 		listener,
-		&conn,
+		cancel,
 	}
 
-	go tcpListener.listen(listener)
+	go listen(ctx, listener, &tcpListener.connections, handler)
 
 	return tcpListener, nil
 }
@@ -46,19 +45,13 @@ func (listener *TcpListener) Close() error {
 		return err
 	}
 
-	listener.conn.Range(func(key, value interface{}) bool {
-		val, ok := value.(io.Closer)
-		if ok {
-			val.Close()
-		}
-
-		return true
-	})
+	listener.cancel()
+	listener.connections.Wait()
 
 	return nil
 }
 
-func (listener *TcpListener) listen(listenerBase net.Listener) {
+func listen(ctx context.Context, listenerBase net.Listener, connections *sync.WaitGroup, handler PacketHandler) {
 	for {
 		conn, err := listenerBase.Accept()
 		if err != nil {
@@ -69,41 +62,48 @@ func (listener *TcpListener) listen(listenerBase net.Listener) {
 			continue
 		}
 
-		go handleConnection(uuid.New(), conn, listener.conn, listener.handler)
+		go handleConnection(ctx, conn, connections, handler)
 	}
 }
 
-func handleConnection(connId uuid.UUID, conn net.Conn, connSync *sync.Map, handler PacketHandler) {
+func handleConnection(ctx context.Context, conn net.Conn, connections *sync.WaitGroup, handler PacketHandler) {
+	ctx, cancel := context.WithCancel(ctx)
+
+	connections.Add(1)
 	defer func() {
-		connSync.Delete(connId)
 		_ = conn.Close()
+		connections.Done()
 	}()
 
-	connSync.Store(connId, conn)
+	go func() {
+		defer cancel()
 
-	buf := make([]byte, 1024)
-	for {
-		count, err := conn.Read(buf)
+		buf := make([]byte, 1024)
+		for {
+			count, err := conn.Read(buf)
 
-		if count > 0 {
-			packet := handler.Handle(buf[:count])
+			if count > 0 {
+				packet := handler.Handle(buf[:count])
 
-			_, err = conn.Write(packet)
+				_, err = conn.Write(packet)
+				if err != nil {
+					if !errors.Is(err, net.ErrClosed) {
+						log.Println("Failed to write connection:", err.Error())
+					}
+
+					return
+				}
+			}
+
 			if err != nil {
 				if !errors.Is(err, net.ErrClosed) {
-					log.Println("Failed to write connection:", err.Error())
+					log.Println("Failed to read connection:", err.Error())
 				}
 
 				return
 			}
 		}
+	}()
 
-		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
-				log.Println("Failed to read connection:", err.Error())
-			}
-
-			return
-		}
-	}
+	<-ctx.Done()
 }
