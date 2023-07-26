@@ -11,7 +11,7 @@ type UdpListener struct {
 	closer io.Closer
 }
 
-func NewUdpListener(address string, handler ConnectionHandler) (*UdpListener, error) {
+func NewUdpListener(address string, handler PacketHandler) (*UdpListener, error) {
 	conn, err := net.ListenPacket("udp", address)
 	if err != nil {
 		return nil, err
@@ -23,7 +23,7 @@ func NewUdpListener(address string, handler ConnectionHandler) (*UdpListener, er
 			count, addr, err := conn.ReadFrom(buf)
 
 			if count > 0 {
-				packet := handler.handleByte(buf[:count])
+				packet := handler.Handle(buf[:count])
 
 				_, err = conn.WriteTo(packet, addr)
 				if err != nil {

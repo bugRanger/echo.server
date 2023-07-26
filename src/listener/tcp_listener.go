@@ -13,17 +13,12 @@ import (
 )
 
 type TcpListener struct {
-	handler ConnectionHandler
+	handler PacketHandler
 	closer  io.Closer
 	conn    *sync.Map
 }
 
-type ConnectionHandler interface {
-	handle(conn net.Conn) error
-	handleByte(bytes []byte) (array []byte)
-}
-
-func NewTcpListener(address string, handler ConnectionHandler) (*TcpListener, error) {
+func NewTcpListener(address string, handler PacketHandler) (*TcpListener, error) {
 	config := &net.ListenConfig{Control: reuseAddr}
 	listener, err := config.Listen(context.Background(), "tcp", address)
 	if err != nil {
@@ -76,7 +71,7 @@ func (listener *TcpListener) listen(listenerBase net.Listener) {
 	}
 }
 
-func handleConnection(connId uuid.UUID, conn net.Conn, connSync *sync.Map, handler ConnectionHandler) {
+func handleConnection(connId uuid.UUID, conn net.Conn, connSync *sync.Map, handler PacketHandler) {
 	defer func() {
 		connSync.Delete(connId)
 		_ = conn.Close()
@@ -84,10 +79,29 @@ func handleConnection(connId uuid.UUID, conn net.Conn, connSync *sync.Map, handl
 
 	connSync.Store(connId, conn)
 
-	err := handler.handle(conn)
-	if err != nil {
-		if !errors.Is(err, net.ErrClosed) {
-			log.Println("Failed to handle connection:", err.Error())
+	buf := make([]byte, 1024)
+	for {
+		count, err := conn.Read(buf)
+
+		if count > 0 {
+			packet := handler.Handle(buf[:count])
+
+			_, err = conn.Write(packet)
+			if err != nil {
+				if !errors.Is(err, net.ErrClosed) {
+					log.Println("Failed to write connection:", err.Error())
+				}
+
+				return
+			}
+		}
+
+		if err != nil {
+			if !errors.Is(err, net.ErrClosed) {
+				log.Println("Failed to read connection:", err.Error())
+			}
+
+			return
 		}
 	}
 }

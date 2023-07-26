@@ -12,7 +12,7 @@ type EchoRouter struct {
 
 func (e *EchoRouter) Open(address string) error {
 	log.Println("Start requested")
-	handler := &listener.EchoHandler{}
+	handler := &EchoHandler{}
 
 	udpListener, err := listener.NewUdpListener(address, handler)
 	if err != nil {
