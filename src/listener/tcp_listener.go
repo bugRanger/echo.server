@@ -55,11 +55,15 @@ func listen(ctx context.Context, listenerBase net.Listener, connections *sync.Wa
 	for {
 		conn, err := listenerBase.Accept()
 		if err != nil {
+			if e, ok := err.(*net.OpError); ok && e.Temporary() {
+				continue
+			}
+
 			if !errors.Is(err, net.ErrClosed) {
 				log.Println("Failed to accept connection:", err.Error())
 			}
 
-			continue
+			break
 		}
 
 		go handleConnection(ctx, conn, connections, handler)
