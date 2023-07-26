@@ -18,6 +18,7 @@ func (e *EchoRouter) Open(address string) error {
 	if err != nil {
 		return err
 	}
+	e.udp = udpListener
 
 	log.Println("Server UDP is running on:", address)
 
@@ -26,10 +27,9 @@ func (e *EchoRouter) Open(address string) error {
 		return err
 	}
 
-	log.Println("Server TCP is running on:", address)
-
 	e.tcp = tcpListener
-	e.udp = udpListener
+
+	log.Println("Server TCP is running on:", address)
 
 	return nil
 }
@@ -41,14 +41,14 @@ func (e *EchoRouter) Close() {
 	if e.udp != nil {
 		err = e.udp.Close()
 		if err != nil {
-			log.Println("Failed close udp:", err.Error())
+			log.Println("Failed close server UDP:", err.Error())
 		}
 	}
 
 	if e.tcp != nil {
 		err = e.tcp.Close()
 		if err != nil {
-			log.Println("Failed close udp:", err.Error())
+			log.Println("Failed close server TCP:", err.Error())
 		}
 	}
 
