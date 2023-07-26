@@ -12,7 +12,12 @@ type UdpListener struct {
 }
 
 func NewUdpListener(address string, handler PacketHandler) (*UdpListener, error) {
-	conn, err := net.ListenPacket("udp", address)
+	addr, err := net.ResolveUDPAddr("udp", address)
+	if nil != err {
+		return nil, err
+	}
+
+	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -20,12 +25,12 @@ func NewUdpListener(address string, handler PacketHandler) (*UdpListener, error)
 	go func() {
 		buf := make([]byte, 1024)
 		for {
-			count, addr, err := conn.ReadFrom(buf)
+			count, addr, err := conn.ReadFromUDPAddrPort(buf)
 
 			if count > 0 {
 				packet := handler.Handle(buf[:count])
 
-				_, err = conn.WriteTo(packet, addr)
+				_, err = conn.WriteToUDPAddrPort(packet, addr)
 				if err != nil {
 					if !errors.Is(err, net.ErrClosed) {
 						log.Println("Failed to write connection:", err.Error())
