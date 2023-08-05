@@ -6,12 +6,10 @@ import (
 	"io"
 	"log"
 	"net"
-	"sync"
 	"time"
 )
 
 type TCPListener struct {
-	connections sync.WaitGroup
 }
 
 func (l *TCPListener) Listen(ctx context.Context, address string, handler PacketHandler) error {
@@ -23,7 +21,6 @@ func (l *TCPListener) Listen(ctx context.Context, address string, handler Packet
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
-		l.connections.Wait()
 	}()
 
 	listener, err := net.ListenTCP("tcp", addr)
@@ -73,10 +70,8 @@ func (l *TCPListener) listen(ctx context.Context, listener net.Listener, handler
 func (l *TCPListener) handleConnection(ctx context.Context, conn net.Conn, handler PacketHandler) {
 	ctx, cancel := context.WithCancel(ctx)
 
-	l.connections.Add(1)
 	defer func() {
 		_ = conn.Close()
-		l.connections.Done()
 	}()
 
 	go func() {
