@@ -30,7 +30,7 @@ func (l *UDPListener) Listen(ctx context.Context, address string, handler Packet
 }
 
 func (l *UDPListener) listen(conn *net.UDPConn, handler PacketHandler) {
-	buf := make([]byte, 1024)
+	buf := make([]byte, 256)
 	for {
 		count, addr, err := conn.ReadFromUDPAddrPort(buf)
 
