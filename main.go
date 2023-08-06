@@ -14,12 +14,8 @@ func main() {
 	flag.Parse()
 
 	router := &router.EchoRouter{}
+	router.Open(*addressFlag)
 	defer router.Close()
-
-	err := router.Open(*addressFlag)
-	if err != nil {
-		log.Fatalln(err)
-	}
 
 	chSig := make(chan os.Signal)
 	signal.Notify(chSig, syscall.SIGINT, syscall.SIGTERM)

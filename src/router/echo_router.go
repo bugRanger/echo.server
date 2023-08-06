@@ -12,7 +12,7 @@ type EchoRouter struct {
 	cancel   context.CancelFunc
 }
 
-func (e *EchoRouter) Open(address string) error {
+func (e *EchoRouter) Open(address string) {
 	log.Println("Start requested")
 
 	handler := &EchoHandler{}
@@ -23,8 +23,6 @@ func (e *EchoRouter) Open(address string) error {
 	e.channels.Add(2)
 	go e.listenUDP(ctx, address, handler)
 	go e.listenTCP(ctx, address, handler)
-
-	return nil
 }
 
 func (e *EchoRouter) Close() {
