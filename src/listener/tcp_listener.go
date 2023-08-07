@@ -19,9 +19,7 @@ func (l *TCPListener) Listen(ctx context.Context, address string, handler Packet
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
-	defer func() {
-		cancel()
-	}()
+	defer cancel()
 
 	listener, err := net.ListenTCP("tcp", addr)
 	if err != nil {
@@ -29,9 +27,25 @@ func (l *TCPListener) Listen(ctx context.Context, address string, handler Packet
 	}
 	defer listener.Close()
 
-	go l.listen(ctx, listener, handler)
+	chanError := make(chan error, 1)
+	go func() {
+		defer cancel()
+
+		err := l.listen(ctx, listener, handler)
+		if err != nil {
+			chanError <- err
+		}
+
+		close(chanError)
+	}()
 
 	<-ctx.Done()
+	listener.Close()
+
+	err, ok := <-chanError
+	if ok && err != nil {
+		return err
+	}
 
 	return nil
 }
