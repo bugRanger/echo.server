@@ -12,7 +12,7 @@ type UDPListener struct {
 
 func (l *UDPListener) Listen(ctx context.Context, address string, handler PacketHandler) error {
 	addr, err := net.ResolveUDPAddr("udp", address)
-	if nil != err {
+	if err != nil {
 		return err
 	}
 

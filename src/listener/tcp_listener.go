@@ -14,7 +14,7 @@ type TCPListener struct {
 
 func (l *TCPListener) Listen(ctx context.Context, address string, handler PacketHandler) error {
 	addr, err := net.ResolveTCPAddr("tcp", address)
-	if nil != err {
+	if err != nil {
 		return err
 	}
 
@@ -24,7 +24,7 @@ func (l *TCPListener) Listen(ctx context.Context, address string, handler Packet
 	}()
 
 	listener, err := net.ListenTCP("tcp", addr)
-	if nil != err {
+	if err != nil {
 		return err
 	}
 	defer listener.Close()
