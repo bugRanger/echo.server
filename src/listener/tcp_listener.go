@@ -91,7 +91,7 @@ func (l *TCPListener) handleConnection(ctx context.Context, conn net.Conn, handl
 	go func() {
 		defer cancel()
 
-		buf := make([]byte, 256)
+		buf := make([]byte, ^uint16(0))
 		for {
 			count, err := conn.Read(buf)
 
